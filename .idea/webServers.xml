@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="132ccb52-1cfc-4aac-a8e9-b5b1a35e2b7c" name="10.156.60.40">
+        <fileTransfer rootFolder="/home/kanren/yuqichen" accessType="SFTP" host="10.156.60.40" port="22" sshConfigId="6d0b5acb-0cda-4804-9581-a2942346ea5f" sshConfig="kanren@10.156.60.40:22 key" keyPair="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
