@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset
 from sklearn.preprocessing import StandardScaler
@@ -390,13 +391,15 @@ class Dataset_Pred(Dataset):
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)
 
-class Dataset_Circuiit(Dataset):
+
+class Dataset_Circuit_Fake(Dataset):
     def __init__(self, root_path, flag='train', size=None,
                  features='M', data_path='adc_small.csv',
                  target='OT', scale=True, timeenc=0, freq='h'):
         # size [seq_len, label_len, pred_len]
         # info
         if size == None:
+            #TODO: Update the seq_len, label_len, pred_len
             self.seq_len = 24 * 4 * 4
             self.label_len = 24 * 4
             self.pred_len = 24 * 4
@@ -409,8 +412,8 @@ class Dataset_Circuiit(Dataset):
         type_map = {'train': 0, 'val': 1, 'test': 2}
         self.set_type = type_map[flag]
 
-        self.features = features
-        self.target = target
+        # self.features = features
+        # self.target = target
         self.scale = scale
         self.timeenc = timeenc
         self.freq = freq
@@ -422,26 +425,28 @@ class Dataset_Circuiit(Dataset):
     def __read_data__(self):
         self.scaler = StandardScaler()
         df_raw = pd.read_csv(os.path.join(self.root_path,
-                                          self.data_path))
+                                          self.data_path),
+                                          header=None)
         df_data = df_raw
         # print(cols)
+        # print(df_data)
         num_train = int(len(df_raw) * 0.7)
         num_test = int(len(df_raw) * 0.2)
         num_val = len(df_raw) - num_train - num_test
-        border1s = [0, num_train - self.seq_len, num_train + num_val - self.seq_len]
-        border2s = [num_train, num_train + num_val, len(df_raw)]
-        border1 = border1s[self.set_type]
-        border2 = border2s[self.set_type]
+        list_border1 = [0, num_train - self.seq_len, num_train + num_val - self.seq_len]
+        list_border2 = [num_train, num_train + num_val, len(df_raw)]
+        border1 = list_border1[self.set_type]
+        border2 = list_border2[self.set_type]
 
         if self.scale:
-            train_data = df_data[border1s[0]:border2s[0]]
+            train_data = df_data[list_border1[0]:list_border2[0]]
             self.scaler.fit(train_data.values)
             data = self.scaler.transform(df_data.values)
         else:
             data = df_data.values
 
-        self.data_x = data[border1:border2]
-        self.data_y = data[border1:border2]
+        self.data_x = self.data_y = data[border1:border2]
+        self.data_stamp = np.hstack((np.ones((len(self.data_x), 3)), np.arange(len(self.data_x)).reshape(-1, 1)))
 
 
     def __getitem__(self, index):
@@ -459,6 +464,94 @@ class Dataset_Circuiit(Dataset):
 
     def __len__(self):
         return len(self.data_x) - self.seq_len - self.pred_len + 1
+
+    def inverse_transform(self, data):
+        return self.scaler.inverse_transform(data)
+    
+
+class Dataset_Circuit(Dataset):
+    def __init__(self, root_path, flag='train', size=None,
+                 features='M', data_path='adc_small.csv',
+                 target='OT', scale=True, timeenc=0, freq='h'):
+        # size [seq_len, label_len, pred_len]
+        # info
+        if size == None:
+            #TODO: Update the seq_len, label_len, pred_len
+            self.seq_len = 501
+            self.label_len = 0
+            self.pred_len = 501
+        else:
+            self.seq_len = size[0]
+            self.label_len = size[1]
+            self.pred_len = size[2]
+        # init
+        assert flag in ['train', 'test', 'val']
+        type_map = {'train': 0, 'val': 1, 'test': 2}
+        self.set_type = type_map[flag]
+
+        # self.features = features
+        # self.target = target
+        self.scale = scale
+        self.timeenc = timeenc
+        self.freq = freq
+
+        self.root_path = root_path
+        self.data_path = data_path
+        self.__read_data__()
+
+    def __read_data__(self):
+        self.scaler = StandardScaler()
+        df_raw = pd.read_csv(os.path.join(self.root_path,
+                                          self.data_path),
+                                          header=None)
+        df_data = df_raw
+        # print(cols)
+        # print(df_data)
+        IN_DIM = 3
+        OUT_DIM = 2
+        TOTAL_DIM = IN_DIM + OUT_DIM
+        num_samples = len(df_raw) / TOTAL_DIM
+        num_train = int(num_samples * 0.7)
+        num_test = int(num_samples * 0.2)
+        num_val = num_samples - num_train - num_test
+        list_border1 = [0, num_train - self.seq_len, num_train + num_val - self.seq_len]
+        list_border2 = [num_train, num_train + num_val, num_samples]
+        border1 = int(list_border1[self.set_type] * TOTAL_DIM)
+        border2 = int(list_border2[self.set_type] * TOTAL_DIM)
+
+        if self.scale:
+            #TODO: is this correct?
+            train_data = df_data[list_border1[0] * TOTAL_DIM :list_border2[0] * TOTAL_DIM]
+            self.scaler.fit(train_data.values)
+            data = self.scaler.transform(df_data.values)
+        else:
+            data = df_data.values
+
+        self.circuit_len = data.shape[1]
+        print(f'circuit length: {self.circuit_len}')
+        # assert self.circuit_len == self.seq_len
+        assert self.label_len == 0 #TODO: is this correct?
+        # assert self.circuit_len == self.pred_len
+        self.data_x = data[border1:border2].reshape(-1, TOTAL_DIM, data.shape[1])[:, :IN_DIM, :].transpose(0, 2, 1).reshape(-1, IN_DIM)
+        self.data_y = data[border1:border2].reshape(-1, TOTAL_DIM, data.shape[1])[:, IN_DIM:, :].transpose(0, 2, 1).reshape(-1, OUT_DIM)
+        print(f'x shape: {self.data_x.shape}, y shape: {self.data_y.shape}')
+        self.data_stamp = np.hstack((np.ones((len(self.data_x), 3)), np.arange(len(self.data_x)).reshape(-1, 1)))
+ 
+    def __getitem__(self, index):
+        x_begin = index * self.circuit_len
+        x_end = x_begin + self.seq_len
+        y_begin = x_begin
+        y_end = y_begin + self.label_len + self.pred_len
+
+        seq_x = self.data_x[x_begin:x_end]
+        seq_y = self.data_y[y_begin:y_end]
+        seq_x_mark = self.data_stamp[x_begin:x_end]
+        seq_y_mark = self.data_stamp[y_begin:y_end]
+
+        return seq_x, seq_y, seq_x_mark, seq_y_mark
+
+    def __len__(self):
+        return int(len(self.data_x) / self.circuit_len)
 
     def inverse_transform(self, data):
         return self.scaler.inverse_transform(data)

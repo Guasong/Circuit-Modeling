@@ -12,17 +12,17 @@ for pred_len in "${pred_lens[@]}"; do
     --is_training 1 \
     --root_path ./dataset/adc/ \
     --data_path adc_small.csv \
-    --model_id adc_small_96_$pred_len \
+    --model_id adc_small_$pred_len \
     --model $model \
-    --data adc_small \
-    --seq_len 501 \
-    --label_len 501 \
+    --data Circuit \
+    --seq_len $pred_len \
+    --label_len 0 \
     --pred_len $pred_len \
     --e_layers 2 \
     --d_layers 1 \
     --factor 3 \
     --enc_in 3 \
-    --dec_in 3 \
+    --dec_in 2 \
     --c_out 2 \
     --des 'Exp' \
     --itr 1
